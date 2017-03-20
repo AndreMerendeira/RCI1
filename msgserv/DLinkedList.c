@@ -11,7 +11,7 @@
 
 #include "DLinkedList.h"
 
-void insertAfter(int newKey, char msg[140], Node* first, Node* last) {
+void insertSorted(int newKey, char msg[140], Node* first, Node* last) {
 	//start from the first link
 	Node *current = first, *new_node;
 
@@ -24,9 +24,10 @@ void insertAfter(int newKey, char msg[140], Node* first, Node* last) {
 		new_node->next = NULL;
 		new_node->prev = NULL;
 		first = new_node;
+		last = new_node;
 		return;
 	}
-
+	//else
 	while( current->next != NULL && current->next->key > newKey) {
 		//move to next link
 		current = current->next;
@@ -42,6 +43,25 @@ void insertAfter(int newKey, char msg[140], Node* first, Node* last) {
 
 	new_node->prev = current;
 	current->next = new_node;
+	return;
+}
+
+void removeLast(Node* first, Node* last) {
+	Node* aux_Node;
+
+	//if only one link
+	if(last->next == NULL) {
+		free(last);
+		last = NULL;
+		first = NULL;
+	}
+	else {
+		last->prev->next = NULL;
+		aux_Node = last->prev;
+		free (last);
+	}
+	last = aux_Node;
+
 	return;
 }
 

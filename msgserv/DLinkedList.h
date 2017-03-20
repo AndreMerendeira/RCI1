@@ -18,6 +18,7 @@ struct Node {
    struct Node *prev;
 };
 
-void insertAfter(int newKey, char msg[140], Node* first, Node* last);
+void insertSorted(int newKey, char msg[140], Node* first, Node* last);
+void removeLast(Node* first, Node* last);
 
 #endif /* DLINKEDLIST_H_ */

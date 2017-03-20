@@ -29,6 +29,7 @@ int main (int argc, char** argv) {
 	char* s_name = NULL, *upt = NULL, *tpt = NULL;
 	char line[50], command[50], ip[20];
 	struct sockaddr_in id_addr ;
+	Node* first = NULL, *last = NULL;
 	enum {idle,busy} state;
 	uint16_t  sipt = 0;
 	struct hostent* id_serv;
@@ -176,15 +177,10 @@ int main (int argc, char** argv) {
 				}
 				 */
 
-				/*
-			// show_messages command
-			else if ( strcmp( command, "show_messages") == 0) {
-				if (id_socket == -1)
-					printf("Please connect to identities server using join\n");
-				else
-					show_messages(put needed arguments here)
-			}
-				 */
+				// show_messages command
+				else if ( strcmp( command, "show_messages") == 0) {
+					show_messages(last);
+				}
 				else
 					printf("Invalid command\n");
 			}
@@ -240,5 +236,17 @@ int disconnect(int id_socket) {
 	return (close(id_socket));
 }
 
+void show_messages(Node* last) {
+	struct Node *ptr = last;
+
+	/*Most recent messages at the start of list, so start printing at last
+	and go backwards*/
+	printf("Stored messages:\n");
+	while(ptr != NULL) {
+		printf("%d: %s\n",ptr->key, ptr->msg);
+		ptr = ptr->prev;
+	}
+	return;
+}
 
 
