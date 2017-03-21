@@ -19,16 +19,16 @@
 #include <errno.h>
 
 #include "msgserv.h"
-#include "DLinkedList.h"
 
 #define max(A,B) ((A)>=(B)?(A):(B))
 
 
 int main (int argc, char** argv) {
-	int i, fd, new_fd, id_socket = -1, max_fd, afd, counter, should_exit = 0;
-	char* s_name = NULL, *upt = NULL, *tpt = NULL;
-	char line[50], command[50], ip[20];
-	struct sockaddr_in id_addr ;
+	int i, ret, c_socket, id_socket = -1, fd, max_fd, afd, counter, should_exit = 0;
+	int c_addrlen, logic_clk = 0, n_msg_stored = 0, n;
+	char* s_name = NULL, *upt = NULL, *tpt = NULL, *response, *messages;
+	char line[50], command[50], ip[20], buffer[200], message[140];
+	struct sockaddr_in id_addr, c_addr ;
 	Node* first = NULL, *last = NULL;
 	enum {idle,busy} state;
 	uint16_t  sipt = 0;
@@ -96,9 +96,24 @@ int main (int argc, char** argv) {
 	refresh.tv_usec = 0;
 
 	//Create UDP server at port upt to receive requests from terminals
+	if((c_socket = socket(AF_INET, SOCK_DGRAM, 0)) == -1) {
+		printf("Error creating a socket to listen to clients\n");
+		exit(1);//error
+	}
 
-	//------TO BE DONE--------
+	memset((void*)&c_addr,(int)'\0',sizeof(c_addr));
+	c_addr.sin_family = AF_INET;
+	c_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+	c_addr.sin_port = htons((ushort)atoi(upt));
 
+	//Bind socket Listening
+	ret = bind(c_socket, (struct sockaddr*) &c_addr, sizeof(c_addr));
+	if(ret == -1) {
+		printf("Error binding a socket to listen to clients\n");
+		exit(1);//error
+	}
+
+	fd = c_socket;
 
 	//Create TCP server at port tpt to receive session start requests from other msg servers
 
@@ -119,7 +134,8 @@ int main (int argc, char** argv) {
 		//if the client is connected, then it must "look" to STDIO and all connections
 		if(id_socket != -1) {
 			//look to all connections and STDIO
-			FD_SET(id_socket, &readfds);
+			FD_SET(c_socket, &readfds);
+
 			counter = select(max_fd+1, &readfds, (fd_set*)NULL,(fd_set*)NULL, &refresh);
 
 			//Re-arm refresh timer
@@ -131,9 +147,8 @@ int main (int argc, char** argv) {
 				exit(1);//error
 			}
 			//Periodically register with ID server
-			if (counter == 0)
+			else if (counter == 0)
 				id_socket = join_id(id_socket, id_addr, s_name, ip, upt, tpt);
-
 		}
 		//if not, it only receives inputs from STDIO
 		else
@@ -186,6 +201,48 @@ int main (int argc, char** argv) {
 			}
 			else
 				printf("Error in command\n");
+		}
+	}
+
+	//Input from a Client
+	if(FD_ISSET(c_socket, &readfds)) {
+		c_addrlen=sizeof(c_addr);
+		if(recvfrom(fd,buffer,200,0,(struct sockaddr*)&c_addr,&c_addrlen) == -1)
+			printf("Error receiving message from a client\n");
+		else {
+			printf("RECEIVED: %s\n", buffer);
+			sscanf(buffer, "%s %[^\n]" , command, message);
+
+			//PUBLISH command
+			if (strcmp(command, "PUBLISH") == 0) {
+				printf("MESSAGE: %s\n", message);
+				logic_clk++;
+				if(n_msg_stored == m) {
+					removeLast(first, last);
+					n_msg_stored--;
+				}
+				insertSorted(logic_clk, message, first, last);
+				n_msg_stored++;
+			}
+			//GET_MESSAGES command
+			else if (strcmp(command, "GET_MESSAGES")) {
+				printf("SENDING %d MESSAGES\n", atoi(message));
+				n = atoi(message);
+				if (n >= 0) {
+					messages = get_n_messages(first, n, n_msg_stored);
+					char *result = malloc(strlen(messages)+strlen("MESSAGES\n")+1);
+					strcpy(result, "MESSAGES\n");
+					strcat(result, messages);
+					ret=sendto(c_socket,result,strlen(result),0,(struct sockaddr*)&c_addr,c_addrlen);
+					if(ret==-1)
+						printf("Error sending messages to client\n");
+				}
+			}
+			else {
+				ret = sendto(c_socket,"Command not valid\n\n",20,0,(struct sockaddr*)&c_addr,c_addrlen);
+				if(ret==-1)
+					printf("Error sending command not valid msg to client\n");
+			}
 		}
 	}
 
@@ -248,5 +305,24 @@ void show_messages(Node* last) {
 	}
 	return;
 }
+char* get_n_messages (Node* first, int n, int stored) {
+	Node *ptr = first;
+	int current = 1;
+	char* result = NULL, *aux = NULL;
+
+	while(ptr != NULL && current <= stored ) {
+		aux = (char*) malloc (sizeof(result)+strlen(ptr->msg));
+		result = (char*) realloc(result, sizeof(result)+strlen(ptr->msg));
+		strcpy (aux, ptr->msg);
+		strcat(aux, result);
+		strcpy(result, aux);
+		ptr = ptr->next;
+		current++;
+		free(aux);
+	}
+
+	return result;
+}
+
 
 
